@@ -8,7 +8,7 @@ DO $$ BEGIN
     END IF;
     
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
-        CREATE TYPE user_status AS ENUM ('pending_approval', 'active', 'suspended', 'rejected');
+        CREATE TYPE user_status AS ENUM ('inactive', 'pending_approval', 'active', 'suspended', 'rejected');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_status') THEN
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   full_name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   role user_role DEFAULT 'coachee' NOT NULL,
-  status user_status DEFAULT 'pending_approval' NOT NULL,
+  status user_status DEFAULT 'inactive' NOT NULL,
   avatar_url TEXT,
   bio TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS public.coach_profiles (
   specialties TEXT[],
   hourly_rate NUMERIC,
   years_experience INTEGER,
+  nationality TEXT,
+  country_based TEXT,
+  diplomas_certifications TEXT[],
   is_featured BOOLEAN DEFAULT false,
   approval_status user_status DEFAULT 'pending_approval',
   rating_avg NUMERIC DEFAULT 5.0,
@@ -59,8 +62,10 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   duration_minutes INTEGER NOT NULL,
   status session_status DEFAULT 'pending_coach_approval' NOT NULL,
   meeting_url TEXT,
-  coach_notes_private TEXT, -- Only coach can see
-  coach_notes_shared TEXT,  -- Coach and Coachee can see
+  coach_notes TEXT,
+  coachee_notes TEXT,
+  action_items JSONB DEFAULT '[]'::jsonb,
+  attachments TEXT[] DEFAULT '{}'::text[],
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -69,11 +74,23 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coach_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 
+-- Coach Profiles: Everyone can see active ones, coaches can see their own, and admins see all
+DROP POLICY IF EXISTS "Public coach profile visibility" ON public.coach_profiles;
+CREATE POLICY "Public coach profile visibility" ON public.coach_profiles
+  FOR SELECT USING (approval_status = 'active' OR id = auth.uid());
+
+DROP POLICY IF EXISTS "Coaches can update own profile" ON public.coach_profiles;
+CREATE POLICY "Coaches can update own profile" ON public.coach_profiles
+  FOR UPDATE USING (id = auth.uid());
+
 -- Profiles: Users can see all active coaches, and only their own private data
--- Drop existing policies if need to recreate (optional but safer for idempotency)
 DROP POLICY IF EXISTS "Public profile visibility" ON public.profiles;
 CREATE POLICY "Public profile visibility" ON public.profiles
   FOR SELECT USING (status = 'active' OR id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+CREATE POLICY "Users can update own profile" ON public.profiles
+  FOR UPDATE USING (id = auth.uid());
 
 -- Sessions: Users can see sessions they are part of
 DROP POLICY IF EXISTS "Session visibility" ON public.sessions;

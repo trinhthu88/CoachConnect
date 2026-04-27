@@ -6,6 +6,13 @@ import { Coaches } from "./pages/Coaches";
 import { Sessions } from "./pages/Sessions";
 import { CoachDashboard } from "./pages/coach/CoachDashboard";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { CoachProfile } from "./pages/coach/CoachProfile";
+import { CoachDetail } from "./pages/CoachDetail";
+import { PendingApprovals } from "./pages/admin/PendingApprovals";
+import { ManageCoaches } from "./pages/admin/ManageCoaches";
+import { ManageCoachees } from "./pages/admin/ManageCoachees";
+import { CoacheeProfile } from "./pages/coachee/CoacheeProfile";
+import { SessionDetail } from "./pages/SessionDetail";
 import { useAuth } from "./context/AuthContext";
 
 // Helper to render the correct dashboard based on role
@@ -32,6 +39,18 @@ function IndexDashboard() {
 const savedRole = localStorage.getItem("__SIMULATED_ROLE");
 (window as any).__ROLE = savedRole || "admin"; // coachee, coach, admin
 
+function ProfilePage() {
+  const activeRole = (window as any).__ROLE || "coachee";
+
+  switch (activeRole) {
+    case "coach":
+      return <CoachProfile />;
+    case "coachee":
+    default:
+      return <CoacheeProfile />;
+  }
+}
+
 export default function App() {
   const currentRole = (window as any).__ROLE;
   return (
@@ -43,16 +62,19 @@ export default function App() {
         <Route element={<AppLayout userRole={currentRole} />}>
           <Route path="/dashboard" element={<IndexDashboard />} />
           <Route path="/coaches" element={<Coaches />} />
+          <Route path="/coaches/:coachId" element={<CoachDetail />} />
           <Route path="/sessions" element={<Sessions />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/sessions/:sessionId" element={<SessionDetail />} />
           
           {/* Placeholders for other routes */}
           <Route path="/chat" element={<div className="font-serif text-3xl">Messaging Center</div>} />
-          <Route path="/profile" element={<div className="font-serif text-3xl">Your Profile</div>} />
           <Route path="/settings" element={<div className="font-serif text-3xl">Settings</div>} />
           
           {/* Admin Routes */}
-          <Route path="/admin/coaches" element={<div className="font-serif text-3xl">Coach Directory Management</div>} />
-          <Route path="/admin/registrations" element={<div className="font-serif text-3xl">New User Approvals</div>} />
+          <Route path="/admin/coaches" element={<ManageCoaches />} />
+          <Route path="/admin/registrations" element={<ManageCoachees />} />
+          <Route path="/admin/approvals" element={<PendingApprovals />} />
         </Route>
 
         <Route path="/login" element={<div>Login Page</div>} />

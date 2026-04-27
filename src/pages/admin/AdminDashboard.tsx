@@ -12,6 +12,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { motion } from "motion/react";
+import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
 export function AdminDashboard() {
@@ -22,6 +23,9 @@ export function AdminDashboard() {
     bookedSessions: 0,
     loading: true
   });
+
+  const [pendingCount, setPendingCount] = useState({ coaches: 0, coachees: 0 });
+  const [pendingList, setPendingList] = useState<any[]>([]);
 
   useEffect(() => {
     async function checkConnection() {
@@ -36,17 +40,35 @@ export function AdminDashboard() {
         setDbStatus("connected");
 
         // Fetch actual counts
-        const [usersCount, coachesCount, sessionsCount] = await Promise.all([
+        const [usersCount, coachesCount, sessionsCount, pendingCoaches, pendingCoachees] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'coach').eq('status', 'active'),
-          supabase.from('sessions').select('*', { count: 'exact', head: true })
+          supabase.from('sessions').select('*', { count: 'exact', head: true }),
+          supabase.from('profiles')
+            .select('id, full_name, email, created_at, role, coach_profiles!inner(approval_status)')
+            .eq('coach_profiles.approval_status', 'pending_approval'),
+          supabase.from('profiles')
+            .select('id, full_name, email, created_at, role')
+            .eq('role', 'coachee')
+            .eq('status', 'pending_approval')
         ]);
+
+        const combinedPending = [
+           ...(pendingCoaches.data || []).map(p => ({ ...p, type: 'Coach' })),
+           ...(pendingCoachees.data || []).map(p => ({ ...p, type: 'Coachee' }))
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         setStats({
           totalUsers: usersCount.count || 0,
           activeCoaches: coachesCount.count || 0,
           bookedSessions: sessionsCount.count || 0,
           loading: false
+        });
+
+        setPendingList(combinedPending);
+        setPendingCount({ 
+          coaches: pendingCoaches.data?.length || 0, 
+          coachees: pendingCoachees.data?.length || 0 
         });
 
       } catch (err) {
@@ -74,8 +96,8 @@ export function AdminDashboard() {
              {dbStatus === "connected" ? <CheckCircle2 size={12} /> : dbStatus === "error" ? <XCircle size={12} /> : <div className="w-2 h-2 rounded-full bg-slate-300 animate-pulse" />}
              Supabase: {dbStatus}
            </div>
-           <button className="px-4 py-2 bg-white border border-[#E2E8F0] text-[#1E293B] rounded-xl text-xs font-bold uppercase tracking-widest hover:border-[#6366F1] transition-all">Invite User</button>
-           <button className="px-4 py-2 bg-[#1E293B] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-black transition-all">Reports</button>
+           <Link to="/admin/coaches" className="px-4 py-2 bg-white border border-[#E2E8F0] text-[#1E293B] rounded-xl text-xs font-bold uppercase tracking-widest hover:border-[#6366F1] transition-all">Manage Coaches</Link>
+           <Link to="/admin/registrations" className="px-4 py-2 bg-[#1E293B] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-black transition-all">Manage Coachees</Link>
         </div>
       </header>
 
@@ -111,30 +133,39 @@ export function AdminDashboard() {
         <div className="lg:col-span-8 space-y-8">
           <section className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-[#F1F5F9] flex justify-between items-center bg-[#F8FAFB]">
-              <h2 className="text-[11px] font-bold text-[#1E293B] uppercase tracking-widest">Pending Registrations</h2>
+              <h2 className="text-[11px] font-bold text-[#1E293B] uppercase tracking-widest">Pending Approvals</h2>
+              <div className="flex gap-2">
+                <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">{pendingCount.coaches} Coach</span>
+                <span className="bg-indigo-100 text-indigo-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">{pendingCount.coachees} Learner</span>
+              </div>
             </div>
             <div className="divide-y divide-[#F1F5F9]">
-              {[
-                { name: "Robert Fox", email: "robert@example.com", type: "Coach", date: "2h ago" },
-                { name: "Cody Fisher", email: "cody@example.com", type: "Coachee", date: "5h ago" },
-              ].map((user) => (
-                <div key={user.email} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+              {pendingList.length > 0 ? pendingList.slice(0, 5).map((user) => (
+                <div key={user.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold border uppercase ${user.type === 'Coach' ? 'bg-[#EEF2FF] text-[#6366F1] border-[#E0E7FF]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                        {user.full_name.charAt(0)}
                      </div>
                      <div>
-                        <p className="text-sm font-bold text-[#1E293B]">{user.name}</p>
+                        <p className="text-sm font-bold text-[#1E293B]">{user.full_name}</p>
                         <p className="text-[10px] font-medium text-[#64748B] uppercase">{user.type} • {user.email}</p>
                      </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><ShieldCheck size={18} /></button>
-                    <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><XCircle size={18} /></button>
+                  <div className="flex items-center gap-4 text-[10px] font-bold text-[#94A3B8] uppercase">
+                     {new Date(user.created_at).toLocaleDateString()}
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-12 text-center text-[#94A3B8] text-xs font-bold uppercase tracking-widest">
+                   No new profiles to approve.
+                </div>
+              )}
             </div>
+            {pendingList.length > 5 && (
+              <div className="p-4 border-t border-[#F1F5F9] text-center">
+                <Link to="/admin/approvals" className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest hover:underline">View All Requests</Link>
+              </div>
+            )}
           </section>
 
           <section className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">

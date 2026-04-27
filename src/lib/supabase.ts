@@ -22,7 +22,7 @@ export function getSupabase(): SupabaseClient {
 // For backwards compatibility with the existing context, we'll export the instance directly as well
 // but handle the initialization check inside the context.
 export type UserRole = "admin" | "coach" | "coachee";
-export type UserStatus = "pending_approval" | "active" | "suspended" | "rejected";
+export type UserStatus = "pending_approval" | "active" | "suspended" | "rejected" | "inactive";
 
 export const supabase = (function() {
     try {

@@ -12,14 +12,40 @@ import {
   Loader2
 } from "lucide-react";
 import { motion } from "motion/react";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 
 export function Coaches() {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Specialties");
   const [coaches, setCoaches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Mock coaches for demo
+  const mockCoaches = [
+    {
+      id: "m1",
+      name: "Dr. Elena Vance",
+      role: "Executive Leadership & EQ",
+      specialties: ["Leadership", "EQ", "Burnout"],
+      rating: 4.9,
+      bio: "Transformational leadership coach with 15+ years experience...",
+      image: "https://ui-avatars.com/api/?name=Elena+Vance&background=F5F3FF&color=6366F1",
+      experience: "15+ years"
+    },
+    {
+      id: "m2",
+      name: "Marcus Thorne",
+      role: "Productivity Architect",
+      specialties: ["Productivity", "Focus", "Deep Work"],
+      rating: 5.0,
+      bio: "Helping creatives and professionals master their cognitive output...",
+      image: "https://ui-avatars.com/api/?name=Marcus+Thorne&background=F0FDF4&color=16A34A",
+      experience: "8+ years"
+    }
+  ];
 
   useEffect(() => {
     async function fetchCoaches() {
@@ -42,24 +68,29 @@ export function Coaches() {
             )
           `)
           .eq('role', 'coach')
-          .eq('status', 'active');
+          .eq('status', 'active')
+          .eq('coach_profiles.approval_status', 'active');
 
         if (error) throw error;
         
-        const mappedCoaches = (data || []).map(p => ({
-          id: p.id,
-          name: p.full_name,
-          role: p.coach_profiles?.title || "Professional Coach",
-          specialties: p.coach_profiles?.specialties || [],
-          rating: p.coach_profiles?.rating_avg || 5.0,
-          bio: p.bio || "No bio available.",
-          image: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name)}&background=F5F3FF&color=6366F1`,
-          experience: `${p.coach_profiles?.years_experience || 0}+ years`
-        }));
-
-        setCoaches(mappedCoaches);
+        if (data && data.length > 0) {
+          const mappedCoaches = (data || []).map(p => ({
+            id: p.id,
+            name: p.full_name,
+            role: p.coach_profiles?.title || "Professional Coach",
+            specialties: p.coach_profiles?.specialties || [],
+            rating: p.coach_profiles?.rating_avg || 5.0,
+            bio: p.bio || "No bio available.",
+            image: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name)}&background=F5F3FF&color=6366F1`,
+            experience: `${p.coach_profiles?.years_experience || 0}+ years`
+          }));
+          setCoaches(mappedCoaches);
+        } else {
+          setCoaches(mockCoaches);
+        }
       } catch (err) {
         console.error("Error fetching coaches:", err);
+        setCoaches(mockCoaches);
       } finally {
         setLoading(false);
       }
@@ -140,6 +171,7 @@ export function Coaches() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
+              onClick={() => navigate(`/coaches/${coach.id}`)}
               className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-sm hover:border-[#6366F1] hover:shadow-xl transition-all duration-300 group cursor-pointer"
             >
               <div className="space-y-5">

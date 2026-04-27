@@ -8,7 +8,8 @@ import {
   XCircle, 
   AlertCircle,
   MessageSquare,
-  ArrowUpRight
+  ArrowUpRight,
+  Video
 } from "lucide-react";
 import { motion } from "motion/react";
 import { supabase } from "../../lib/supabase";
@@ -23,6 +24,8 @@ export function CoachDashboard() {
     loading: true
   });
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [activeCoachees, setActiveCoachees] = useState<any[]>([]);
+  const [nextSession, setNextSession] = useState<any>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -42,24 +45,41 @@ export function CoachDashboard() {
         const coachId = coaches?.[0]?.id;
 
         if (coachId) {
-          const [sessionsCount, coacheesCount, requests] = await Promise.all([
+          const [sessionsCount, completedCount, requests, coachees, upcoming] = await Promise.all([
             supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('coach_id', coachId),
-            supabase.from('sessions').select('coachee_id', { count: 'exact', head: true }).eq('coach_id', coachId),
+            supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('coach_id', coachId).eq('status', 'completed'),
             supabase.from('sessions')
               .select('*, coachee:profiles!sessions_coachee_id_fkey(full_name, email)')
               .eq('coach_id', coachId)
-              .eq('status', 'pending_coach_approval')
+              .eq('status', 'pending_coach_approval'),
+            supabase.from('sessions')
+              .select('coachee:profiles!sessions_coachee_id_fkey(id, full_name, bio, status)')
+              .eq('coach_id', coachId)
+              .limit(5),
+            supabase.from('sessions')
+              .select('*, coachee:profiles!sessions_coachee_id_fkey(full_name)')
+              .eq('coach_id', coachId)
+              .eq('status', 'confirmed')
+              .gte('start_time', new Date().toISOString())
+              .order('start_time', { ascending: true })
+              .limit(1)
+              .single()
           ]);
 
           setStats({
             totalSessions: sessionsCount.count || 0,
-            activeCoachees: coacheesCount.count || 0,
+            activeCoachees: completedCount.count || 0,
             avgRating: 5.0,
             pendingTasks: requests.data?.length || 0,
             loading: false
           });
 
           setPendingRequests(requests.data || []);
+          setNextSession(upcoming.data);
+          
+          // Unique coachees
+          const uniqueCoachees = Array.from(new Map(coachees.data?.map((item: any) => [item.coachee.id, item.coachee])).values());
+          setActiveCoachees(uniqueCoachees);
         } else {
            setStats(prev => ({ ...prev, loading: false }));
         }
@@ -164,37 +184,41 @@ export function CoachDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
-                  {[
-                    { name: "Sarah Chen", industry: "Tech", status: "Active", progress: 80 },
-                    { name: "David Miller", industry: "Finance", status: "On-Hold", progress: 45 },
-                  ].map((coachee) => (
-                    <tr key={coachee.name} className="group">
+                  {activeCoachees.map((coachee) => (
+                    <tr key={coachee.id} className="group">
                       <td className="py-4">
                         <div className="flex items-center gap-3">
-                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">
-                             {coachee.name.split(' ').map(n => n[0]).join('')}
+                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 capitalize">
+                             {coachee.full_name?.charAt(0)}
                            </div>
                            <div>
-                              <p className="text-sm font-bold text-[#1E293B]">{coachee.name}</p>
-                              <p className="text-[10px] text-[#94A3B8] uppercase font-bold">{coachee.industry}</p>
+                              <p className="text-sm font-bold text-[#1E293B]">{coachee.full_name}</p>
+                              <p className="text-[10px] text-[#94A3B8] uppercase font-bold truncate max-w-[150px]">{coachee.bio || "No bio"}</p>
                            </div>
                         </div>
                       </td>
                       <td className="py-4">
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${coachee.status === 'Active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest ${coachee.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                           {coachee.status}
                         </span>
                       </td>
                       <td className="py-4">
                          <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-[#6366F1] rounded-full" style={{ width: `${coachee.progress}%` }} />
+                            <div className="h-full bg-[#6366F1] rounded-full" style={{ width: `70%` }} />
                          </div>
                       </td>
                       <td className="py-4 text-right">
-                        <button className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest hover:underline">Details</button>
+                        <button className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest hover:underline text-nowrap">View Logs</button>
                       </td>
                     </tr>
                   ))}
+                  {activeCoachees.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-[#94A3B8] text-[10px] font-bold uppercase tracking-widest">
+                        No coachees assigned yet.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -203,18 +227,32 @@ export function CoachDashboard() {
 
         {/* Sidebar */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-[#1E293B] rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-2 opacity-10"><Calendar size={48} /></div>
-            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-2">Upcoming Today</h3>
-            <p className="text-lg font-bold mb-4 tracking-tight leading-loose">Communication Strategy Session</p>
-            <div className="flex items-center gap-3 mb-6">
-               <img src="https://ui-avatars.com/api/?name=Sarah&background=fff&color=1E293B" className="w-8 h-8 rounded-full border-2 border-white/20" />
-               <span className="text-xs font-medium opacity-80">with Sarah Chen • 2:00 PM</span>
+          {nextSession ? (
+            <div className="bg-[#1E293B] rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-2 opacity-10"><Calendar size={48} /></div>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-2">Upcoming Session</h3>
+              <p className="text-xl font-bold mb-4 tracking-tight leading-tight">{nextSession.topic}</p>
+              <div className="flex items-center gap-3 mb-6">
+                 <img src={`https://ui-avatars.com/api/?name=${nextSession.coachee?.full_name}&background=fff&color=1E293B`} className="w-8 h-8 rounded-full border-2 border-white/20" />
+                 <span className="text-xs font-medium opacity-80">with {nextSession.coachee?.full_name} • {new Date(nextSession.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+              <a 
+                href={nextSession.meeting_url}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full py-4 bg-[#6366F1] text-white font-bold rounded-2xl shadow-lg hover:bg-[#4F46E5] transition-all text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"
+              >
+                <Video size={16} /> Join Session
+              </a>
             </div>
-            <button className="w-full py-3 bg-[#6366F1] text-white font-bold rounded-xl shadow-lg hover:bg-[#4F46E5] transition-all text-xs uppercase tracking-widest">
-              Join Zoom
-            </button>
-          </div>
+          ) : (
+            <div className="bg-slate-100 rounded-3xl p-8 text-center space-y-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center mx-auto text-slate-300">
+                <Calendar size={24} />
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">No scheduled sessions</p>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-sm">
             <div className="flex items-center justify-between mb-4">
