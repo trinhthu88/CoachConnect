@@ -1,0 +1,8 @@
+{
+  "name": "Connect+",
+  "description": "Premium private coaching platform connecting coachees with approved coaches, featuring booking, real-time chat, and role-based dashboards.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
