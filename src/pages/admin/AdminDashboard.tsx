@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Users, 
   Calendar, 
@@ -8,11 +8,56 @@ import {
   AlertCircle,
   Database,
   ArrowUpRight,
-  XCircle
+  XCircle,
+  CheckCircle2
 } from "lucide-react";
 import { motion } from "motion/react";
+import { supabase } from "../../lib/supabase";
 
 export function AdminDashboard() {
+  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "error">("checking");
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeCoaches: 0,
+    bookedSessions: 0,
+    loading: true
+  });
+
+  useEffect(() => {
+    async function checkConnection() {
+      if (!supabase) {
+        setDbStatus("error");
+        setStats(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      try {
+        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (error) throw error;
+        setDbStatus("connected");
+
+        // Fetch actual counts
+        const [usersCount, coachesCount, sessionsCount] = await Promise.all([
+          supabase.from('profiles').select('*', { count: 'exact', head: true }),
+          supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'coach').eq('status', 'active'),
+          supabase.from('sessions').select('*', { count: 'exact', head: true })
+        ]);
+
+        setStats({
+          totalUsers: usersCount.count || 0,
+          activeCoaches: coachesCount.count || 0,
+          bookedSessions: sessionsCount.count || 0,
+          loading: false
+        });
+
+      } catch (err) {
+        console.error("DB Check failed:", err);
+        setDbStatus("error");
+        setStats(prev => ({ ...prev, loading: false }));
+      }
+    }
+    checkConnection();
+  }, []);
+
   return (
     <div className="space-y-8">
       <header className="flex items-end justify-between">
@@ -21,6 +66,14 @@ export function AdminDashboard() {
           <p className="text-[#64748B] font-medium">Platform overview and user management control center.</p>
         </div>
         <div className="flex items-center gap-3">
+           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border ${
+             dbStatus === "connected" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
+             dbStatus === "error" ? "bg-red-50 text-red-600 border-red-100" : 
+             "bg-slate-50 text-slate-400 border-slate-100"
+           }`}>
+             {dbStatus === "connected" ? <CheckCircle2 size={12} /> : dbStatus === "error" ? <XCircle size={12} /> : <div className="w-2 h-2 rounded-full bg-slate-300 animate-pulse" />}
+             Supabase: {dbStatus}
+           </div>
            <button className="px-4 py-2 bg-white border border-[#E2E8F0] text-[#1E293B] rounded-xl text-xs font-bold uppercase tracking-widest hover:border-[#6366F1] transition-all">Invite User</button>
            <button className="px-4 py-2 bg-[#1E293B] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-black transition-all">Reports</button>
         </div>
@@ -29,9 +82,9 @@ export function AdminDashboard() {
       {/* Global Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: "Total Users", value: "1,284", icon: <Users size={20} />, color: "text-blue-500" },
-          { label: "Active Coaches", value: "48", icon: <Layout size={20} />, color: "text-indigo-500" },
-          { label: "Booked Sessions", value: "312", icon: <Calendar size={20} />, color: "text-emerald-500" },
+          { label: "Total Users", value: stats.loading ? "..." : stats.totalUsers.toString(), icon: <Users size={20} />, color: "text-blue-500" },
+          { label: "Active Coaches", value: stats.loading ? "..." : stats.activeCoaches.toString(), icon: <Layout size={20} />, color: "text-indigo-500" },
+          { label: "Booked Sessions", value: stats.loading ? "..." : stats.bookedSessions.toString(), icon: <Calendar size={20} />, color: "text-emerald-500" },
           { label: "Revenue (Demo)", value: "$0.00", icon: <Database size={20} />, color: "text-slate-400" },
         ].map((stat, i) => (
           <motion.div 

@@ -12,14 +12,15 @@ Connect+ is a private, role-based coaching platform that connects invited coache
 ### 2. Database Setup
 1. Create a new project on Supabase.
 2. Go to the **SQL Editor** in your Supabase dashboard.
-3. Paste the contents of `supabase-schema.sql` (found in the root of this project) and click **Run**.
-4. This script will create all necessary tables, enums, and basic Row Level Security (RLS) policies.
+3. Paste the contents of `supabase-schema.sql` and click **Run**.
+4. Then paste the contents of `supabase-seed.sql` and click **Run** to populate dummy data.
+5. This script creates the tables without strict Auth requirements for demo purposes, so you can see the interface immediately.
 
 ### 3. Environment Variables
 1. Create a `.env` file in the root directory.
 2. Copy the content from `.env.example` into `.env`.
 3. Fill in your credentials:
-   - `VITE_SUPABASE_URL`: Found in Supabase Settings > API.
+   - `VITE_SUPABASE_URL`: Found in Supabase Settings > API (e.g., `https://your-proj.supabase.co`). *Do not include /rest/v1/ at the end.*
    - `VITE_SUPABASE_ANON_KEY`: Found in Supabase Settings > API.
    - `VITE_RESEND_API_KEY`: Found in Resend Settings > API Keys.
 

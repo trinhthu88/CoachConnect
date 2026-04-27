@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Search, 
   Filter, 
@@ -8,56 +8,72 @@ import {
   Languages, 
   ChevronRight,
   ShieldCheck,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "../lib/utils";
-
-const coaches = [
-  {
-    id: "1",
-    name: "Dr. Sarah Chen",
-    role: "Executive Leadership Coach",
-    specialties: ["Leadership", "Communication", "Conflict Resolution"],
-    languages: ["English", "Mandarin"],
-    rating: 4.9,
-    reviews: 124,
-    bio: "Helping leaders navigate complex organizational challenges through behavioral psychology.",
-    experience: "15+ years",
-    image: "https://ui-avatars.com/api/?name=Sarah+Chen&background=F5F3FF&color=6366F1",
-    availableSoon: true
-  },
-  {
-    id: "2",
-    name: "Marcus Thorne",
-    role: "Product & Growth Advisor",
-    specialties: ["Mindset", "Productivity", "Career Growth"],
-    languages: ["English", "Vietnamese"],
-    rating: 4.8,
-    reviews: 89,
-    bio: "Ex-Google PM lead focused on helping technical founders scale their impact and teams.",
-    experience: "10+ years",
-    image: "https://ui-avatars.com/api/?name=Marcus+Thorne&background=F5F3FF&color=6366F1",
-    availableSoon: false
-  },
-  {
-    id: "3",
-    name: "Elena Rodriguez",
-    role: "Wellness & Performance Coach",
-    specialties: ["Wellness", "Stress Management", "Confidence"],
-    languages: ["English", "Spanish"],
-    rating: 5.0,
-    reviews: 56,
-    bio: "Integrating mindfulness and professional performance to prevent burnout in high-growth roles.",
-    experience: "8 years",
-    image: "https://ui-avatars.com/api/?name=Elena+Rodriguez&background=F5F3FF&color=6366F1",
-    availableSoon: true
-  }
-];
+import { supabase } from "../lib/supabase";
 
 export function Coaches() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All Specialties");
+  const [coaches, setCoaches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCoaches() {
+      if (!supabase) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select(`
+            id, 
+            full_name, 
+            avatar_url, 
+            bio,
+            coach_profiles!inner (
+              title,
+              specialties,
+              rating_avg,
+              sessions_completed,
+              years_experience
+            )
+          `)
+          .eq('role', 'coach')
+          .eq('status', 'active');
+
+        if (error) throw error;
+        
+        const mappedCoaches = (data || []).map(p => ({
+          id: p.id,
+          name: p.full_name,
+          role: p.coach_profiles?.title || "Professional Coach",
+          specialties: p.coach_profiles?.specialties || [],
+          rating: p.coach_profiles?.rating_avg || 5.0,
+          bio: p.bio || "No bio available.",
+          image: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name)}&background=F5F3FF&color=6366F1`,
+          experience: `${p.coach_profiles?.years_experience || 0}+ years`
+        }));
+
+        setCoaches(mappedCoaches);
+      } catch (err) {
+        console.error("Error fetching coaches:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchCoaches();
+  }, []);
+
+  const filteredCoaches = coaches.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          c.specialties.some((s: string) => s.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCategory = activeCategory === "All Specialties" || c.specialties.includes(activeCategory);
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="space-y-8">
@@ -111,56 +127,67 @@ export function Coaches() {
       </div>
 
       {/* Grid of Coaches */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {coaches.map((coach, i) => (
-          <motion.div 
-            key={coach.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-sm hover:border-[#6366F1] hover:shadow-xl transition-all duration-300 group cursor-pointer"
-          >
-            <div className="space-y-5">
-              <div className="flex items-start justify-between">
-                <img src={coach.image} alt={coach.name} className="w-14 h-14 rounded-xl border border-slate-100" />
-                <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg text-amber-600 font-bold text-xs border border-amber-100">
-                  <Star size={12} fill="currentColor" />
-                  {coach.rating}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+           <Loader2 className="animate-spin text-[#6366F1]" size={48} />
+           <p className="text-sm font-bold text-[#94A3B8] uppercase tracking-widest">Finding Coaches...</p>
+        </div>
+      ) : filteredCoaches.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCoaches.map((coach, i) => (
+            <motion.div 
+              key={coach.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-sm hover:border-[#6366F1] hover:shadow-xl transition-all duration-300 group cursor-pointer"
+            >
+              <div className="space-y-5">
+                <div className="flex items-start justify-between">
+                  <img src={coach.image} alt={coach.name} className="w-14 h-14 rounded-xl border border-slate-100" />
+                  <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg text-amber-600 font-bold text-xs border border-amber-100">
+                    <Star size={12} fill="currentColor" />
+                    {coach.rating}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-bold text-[#1E293B] group-hover:text-[#6366F1] transition-colors">{coach.name}</h3>
+                  <p className="text-xs font-semibold text-[#64748B]">{coach.role}</p>
+                </div>
+
+                <p className="text-[#64748B] text-xs leading-relaxed line-clamp-3 font-medium italic">
+                  "{coach.bio}"
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {coach.specialties.slice(0, 3).map((spec: string) => (
+                    <span key={spec} className="px-2 py-1 bg-[#F1F5F9] text-[#64748B] rounded-lg text-[9px] font-bold uppercase tracking-widest">
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="pt-4 flex items-center justify-between border-t border-[#F1F5F9]">
+                  <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#94A3B8] uppercase">
+                          <Clock size={14} className="text-[#6366F1]" />
+                          {coach.experience}
+                      </div>
+                  </div>
+                  <button className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest group-hover:underline">
+                    View Profile
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-[#1E293B] group-hover:text-[#6366F1] transition-colors">{coach.name}</h3>
-                <p className="text-xs font-semibold text-[#64748B]">{coach.role}</p>
-              </div>
-
-              <p className="text-[#64748B] text-xs leading-relaxed line-clamp-3 font-medium italic">
-                "{coach.bio}"
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {coach.specialties.slice(0, 3).map(spec => (
-                  <span key={spec} className="px-2 py-1 bg-[#F1F5F9] text-[#64748B] rounded-lg text-[9px] font-bold uppercase tracking-widest">
-                    {spec}
-                  </span>
-                ))}
-              </div>
-
-              <div className="pt-4 flex items-center justify-between border-t border-[#F1F5F9]">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#94A3B8] uppercase">
-                        <Languages size={14} className="text-[#6366F1]" />
-                        {coach.languages.length} Lgs
-                    </div>
-                </div>
-                <button className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest group-hover:underline">
-                  View Profile
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-24 bg-white border border-[#E2E8F0] rounded-2xl border-dashed">
+           <p className="text-sm font-bold text-[#94A3B8] uppercase tracking-widest">No coaches found matching your criteria.</p>
+        </div>
+      )}
     </div>
   );
 }

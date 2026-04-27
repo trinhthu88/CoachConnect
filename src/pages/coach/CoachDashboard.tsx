@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Users, 
   Calendar, 
@@ -11,8 +11,68 @@ import {
   ArrowUpRight
 } from "lucide-react";
 import { motion } from "motion/react";
+import { supabase } from "../../lib/supabase";
 
 export function CoachDashboard() {
+  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "error">("checking");
+  const [stats, setStats] = useState({
+    totalSessions: 0,
+    activeCoachees: 0,
+    avgRating: 5.0,
+    pendingTasks: 0,
+    loading: true
+  });
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function fetchData() {
+      if (!supabase) {
+        setDbStatus("error");
+        setStats(prev => ({ ...prev, loading: false }));
+        return;
+      }
+
+      try {
+        const { error: connectionError } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (connectionError) throw connectionError;
+        setDbStatus("connected");
+
+        // For demo, we'll try to find any coach ID. In real app, this is auth.uid()
+        const { data: coaches } = await supabase.from('profiles').select('id').eq('role', 'coach').limit(1);
+        const coachId = coaches?.[0]?.id;
+
+        if (coachId) {
+          const [sessionsCount, coacheesCount, requests] = await Promise.all([
+            supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('coach_id', coachId),
+            supabase.from('sessions').select('coachee_id', { count: 'exact', head: true }).eq('coach_id', coachId),
+            supabase.from('sessions')
+              .select('*, coachee:profiles!sessions_coachee_id_fkey(full_name, email)')
+              .eq('coach_id', coachId)
+              .eq('status', 'pending_coach_approval')
+          ]);
+
+          setStats({
+            totalSessions: sessionsCount.count || 0,
+            activeCoachees: coacheesCount.count || 0,
+            avgRating: 5.0,
+            pendingTasks: requests.data?.length || 0,
+            loading: false
+          });
+
+          setPendingRequests(requests.data || []);
+        } else {
+           setStats(prev => ({ ...prev, loading: false }));
+        }
+
+      } catch (err) {
+        console.error("Coach data fetch failed:", err);
+        setDbStatus("error");
+        setStats(prev => ({ ...prev, loading: false }));
+      }
+    }
+    fetchData();
+  }, []);
+
   return (
     <div className="space-y-8">
       <header className="flex items-end justify-between">
@@ -29,10 +89,10 @@ export function CoachDashboard() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: "Total Sessions", value: "142", icon: <Calendar size={20} />, color: "text-indigo-500" },
-          { label: "Active Coachees", value: "8", icon: <Users size={20} />, color: "text-emerald-500" },
-          { label: "Avg. Rating", value: "5.0", icon: <Star size={20} />, color: "text-amber-500" },
-          { label: "Pending Tasks", value: "3", icon: <AlertCircle size={20} />, color: "text-red-500" },
+          { label: "Total Sessions", value: stats.loading ? "..." : stats.totalSessions.toString(), icon: <Calendar size={20} />, color: "text-indigo-500" },
+          { label: "Active Coachees", value: stats.loading ? "..." : stats.activeCoachees.toString(), icon: <Users size={20} />, color: "text-emerald-500" },
+          { label: "Avg. Rating", value: stats.avgRating.toFixed(1), icon: <Star size={20} />, color: "text-amber-500" },
+          { label: "Pending Tasks", value: stats.loading ? "..." : stats.pendingTasks.toString(), icon: <AlertCircle size={20} />, color: "text-red-500" },
         ].map((stat, i) => (
           <motion.div 
             key={stat.label}
@@ -60,21 +120,18 @@ export function CoachDashboard() {
           <section className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-[#F1F5F9] flex justify-between items-center bg-[#F8FAFB]">
               <h2 className="text-[11px] font-bold text-[#1E293B] uppercase tracking-widest">Pending Booking Requests</h2>
-              <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">3 New</span>
+              <span className="bg-amber-100 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">{pendingRequests.length} New</span>
             </div>
             <div className="divide-y divide-[#F1F5F9]">
-              {[
-                { name: "John Smith", topic: "Leadership EQ", time: "Tomorrow, 10:00 AM", duration: "60m", seed: "John" },
-                { name: "Emily Watson", topic: "Career Pivot", time: "May 2, 2:00 PM", duration: "45m", seed: "Emily" },
-              ].map((req) => (
-                <div key={req.name} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
+              {pendingRequests.length > 0 ? pendingRequests.map((req) => (
+                <div key={req.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4">
-                    <img src={`https://ui-avatars.com/api/?name=${req.seed}&background=F1F5F9&color=6366F1`} className="w-12 h-12 rounded-xl" alt="Avatar" />
+                    <img src={`https://ui-avatars.com/api/?name=${req.coachee?.full_name || 'User'}&background=F1F5F9&color=6366F1`} className="w-12 h-12 rounded-xl" alt="Avatar" />
                     <div>
-                      <p className="text-sm font-bold text-[#1E293B]">{req.name}</p>
-                      <p className="text-[11px] font-medium text-[#64748B] mb-1">{req.topic} • {req.duration}</p>
+                      <p className="text-sm font-bold text-[#1E293B]">{req.coachee?.full_name || 'Unknown Coachee'}</p>
+                      <p className="text-[11px] font-medium text-[#64748B] mb-1">{req.topic} • {req.duration_minutes}m</p>
                       <div className="flex items-center gap-1 text-[10px] text-[#94A3B8] font-bold uppercase tracking-wider">
-                         <Clock size={10} /> {req.time}
+                         <Clock size={10} /> {new Date(req.start_time).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -83,7 +140,11 @@ export function CoachDashboard() {
                     <button className="px-4 py-2 border border-[#E2E8F0] text-[#64748B] rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-white transition-all">Decline</button>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-12 text-center text-[#94A3B8] text-xs font-bold uppercase tracking-widest">
+                   No pending requests found.
+                </div>
+              )}
             </div>
           </section>
 

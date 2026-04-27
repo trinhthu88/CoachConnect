@@ -29,16 +29,18 @@ function IndexDashboard() {
 }
 
 // Temporary role for demo simulation
-(window as any).__ROLE = "admin"; // coachee, coach, admin
+const savedRole = localStorage.getItem("__SIMULATED_ROLE");
+(window as any).__ROLE = savedRole || "admin"; // coachee, coach, admin
 
 export default function App() {
+  const currentRole = (window as any).__ROLE;
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
         {/* Core Dashboard Structure */}
-        <Route element={<AppLayout userRole={(window as any).__ROLE} />}>
+        <Route element={<AppLayout userRole={currentRole} />}>
           <Route path="/dashboard" element={<IndexDashboard />} />
           <Route path="/coaches" element={<Coaches />} />
           <Route path="/sessions" element={<Sessions />} />
