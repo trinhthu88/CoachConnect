@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./components/AppLayout";
 import { Dashboard } from "./pages/Dashboard"; // This acts as CoacheeDashboard
 import { Coaches } from "./pages/Coaches";
@@ -54,7 +54,7 @@ function ProfilePage() {
 export default function App() {
   const currentRole = (window as any).__ROLE;
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
@@ -80,6 +80,6 @@ export default function App() {
         <Route path="/login" element={<div>Login Page</div>} />
         <Route path="/register" element={<div>Register Page</div>} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

@@ -9,6 +9,13 @@ DO $$ BEGIN
     
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_status') THEN
         CREATE TYPE user_status AS ENUM ('inactive', 'pending_approval', 'active', 'suspended', 'rejected');
+    ELSE
+        -- If it exists, make sure 'inactive' is one of the values
+        BEGIN
+            ALTER TYPE user_status ADD VALUE IF NOT EXISTS 'inactive';
+        EXCEPTION
+            WHEN others THEN NULL; -- Some versions of Postgres don't support IF NOT EXISTS on ADD VALUE
+        END;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'session_status') THEN
