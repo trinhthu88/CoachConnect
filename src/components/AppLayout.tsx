@@ -34,9 +34,15 @@ const navItems: NavItem[] = [
 
 import { Link, Outlet } from "react-router-dom";
 
+import { useAuth } from "../context/AuthContext";
+
 export default function AppLayout({ userRole }: { userRole: UserRole }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const { user, signOut } = useAuth();
 
+  const displayName = user?.user_metadata?.full_name || user?.email || "User";
+  const initials = displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+  
   return (
     <div className="flex h-screen bg-[#F8FAFB] text-[#1E293B] font-sans selection:bg-indigo-100">
       {/* Sidebar */}
@@ -81,31 +87,10 @@ export default function AppLayout({ userRole }: { userRole: UserRole }) {
         </nav>
 
         <div className="p-4 border-t border-[#F1F5F9] space-y-2">
-          {isSidebarOpen && (
-            <div className="px-3 pb-2 text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest">
-              Role Simulation
-            </div>
-          )}
-          <div className="flex flex-col gap-1">
-             {["coachee", "coach", "admin"].map((r) => (
-               <button 
-                 key={r}
-                 onClick={() => {
-                   localStorage.setItem("__SIMULATED_ROLE", r);
-                   window.location.reload();
-                 }}
-                 className={`flex items-center gap-4 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                   userRole === r 
-                     ? "bg-[#6366F1] text-white" 
-                     : "text-[#64748B] hover:bg-slate-50"
-                 }`}
-               >
-                 <Shield size={14} className={userRole === r ? "text-white" : "text-[#94A3B8]"} />
-                 {isSidebarOpen && <span className="capitalize">{r}</span>}
-               </button>
-             ))}
-          </div>
-          <button className="w-full mt-4 flex items-center gap-4 px-3 py-3 rounded-xl text-[#64748B] hover:bg-red-50 hover:text-red-600 transition-all font-semibold overflow-hidden">
+          <button 
+            onClick={() => signOut()}
+            className="w-full mt-4 flex items-center gap-4 px-3 py-3 rounded-xl text-[#64748B] hover:bg-red-50 hover:text-red-600 transition-all font-semibold overflow-hidden"
+          >
             <LogOut size={20} />
             {isSidebarOpen && <span className="whitespace-nowrap text-sm">Sign Out</span>}
           </button>
@@ -121,11 +106,13 @@ export default function AppLayout({ userRole }: { userRole: UserRole }) {
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-                <p className="text-sm font-bold text-[#0F172A]">Sarah Chen</p>
+                <p className="text-sm font-bold text-[#0F172A]">{displayName}</p>
                 <p className="text-[10px] font-bold text-[#6366F1] uppercase tracking-widest">{userRole}</p>
             </div>
-            <div className="h-9 w-9 rounded-full bg-[#E0E7FF] border border-[#C7D2FE] overflow-hidden">
-                <img src="https://ui-avatars.com/api/?name=Sarah+Chen&background=6366F1&color=fff" alt="Avatar" />
+            <div className="h-9 w-9 rounded-full bg-[#E0E7FF] border border-[#C7D2FE] overflow-hidden flex items-center justify-center font-bold text-[#6366F1] text-xs">
+                {user?.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="Avatar" />
+                ) : initials}
             </div>
           </div>
         </header>

@@ -14,6 +14,29 @@ import { ManageCoachees } from "./pages/admin/ManageCoachees";
 import { CoacheeProfile } from "./pages/coachee/CoacheeProfile";
 import { SessionDetail } from "./pages/SessionDetail";
 import { useAuth } from "./context/AuthContext";
+import { Auth } from "./pages/Auth";
+import { UserRole } from "./lib/supabase";
+
+// Protected Route Component
+function ProtectedRoute({ children, role: requiredRole }: { children: React.ReactNode, role?: UserRole }) {
+  const { user, role, isLoading } = useAuth();
+  
+  if (isLoading) return (
+    <div className="h-screen flex items-center justify-center font-sans font-bold text-slate-300 uppercase tracking-widest animate-pulse">
+      Loading Platform...
+    </div>
+  );
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && role !== requiredRole && role !== "admin") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+}
 
 // Helper to render the correct dashboard based on role
 function IndexDashboard() {
@@ -21,10 +44,7 @@ function IndexDashboard() {
   
   if (isLoading) return <div className="h-screen flex items-center justify-center font-sans font-bold text-slate-300 uppercase tracking-widest animate-pulse">Loading Platform...</div>;
 
-  // Use CURRENT_ROLE as fallback for demo if Auth is not yet configured with real users
-  const activeRole = role || (window as any).__ROLE || "coachee";
-
-  switch (activeRole) {
+  switch (role) {
     case "admin":
       return <AdminDashboard />;
     case "coach":
@@ -35,14 +55,10 @@ function IndexDashboard() {
   }
 }
 
-// Temporary role for demo simulation
-const savedRole = localStorage.getItem("__SIMULATED_ROLE");
-(window as any).__ROLE = savedRole || "admin"; // coachee, coach, admin
-
 function ProfilePage() {
-  const activeRole = (window as any).__ROLE || "coachee";
+  const { role } = useAuth();
 
-  switch (activeRole) {
+  switch (role) {
     case "coach":
       return <CoachProfile />;
     case "coachee":
@@ -52,14 +68,15 @@ function ProfilePage() {
 }
 
 export default function App() {
-  const currentRole = (window as any).__ROLE;
+  const { role } = useAuth();
+  
   return (
     <HashRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         
         {/* Core Dashboard Structure */}
-        <Route element={<AppLayout userRole={currentRole} />}>
+        <Route element={<ProtectedRoute><AppLayout userRole={role || 'coachee'} /></ProtectedRoute>}>
           <Route path="/dashboard" element={<IndexDashboard />} />
           <Route path="/coaches" element={<Coaches />} />
           <Route path="/coaches/:coachId" element={<CoachDetail />} />
@@ -67,18 +84,18 @@ export default function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/sessions/:sessionId" element={<SessionDetail />} />
           
-          {/* Placeholders for other routes */}
           <Route path="/chat" element={<div className="font-serif text-3xl">Messaging Center</div>} />
           <Route path="/settings" element={<div className="font-serif text-3xl">Settings</div>} />
           
-          {/* Admin Routes */}
-          <Route path="/admin/coaches" element={<ManageCoaches />} />
-          <Route path="/admin/registrations" element={<ManageCoachees />} />
-          <Route path="/admin/approvals" element={<PendingApprovals />} />
+          {/* Admin Protected Routes */}
+          <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/coaches" element={<ProtectedRoute role="admin"><ManageCoaches /></ProtectedRoute>} />
+          <Route path="/admin/registrations" element={<ProtectedRoute role="admin"><ManageCoachees /></ProtectedRoute>} />
+          <Route path="/admin/approvals" element={<ProtectedRoute role="admin"><PendingApprovals /></ProtectedRoute>} />
         </Route>
 
-        <Route path="/login" element={<div>Login Page</div>} />
-        <Route path="/register" element={<div>Register Page</div>} />
+        <Route path="/login" element={<Auth />} />
+        <Route path="/register" element={<Auth />} />
       </Routes>
     </HashRouter>
   );
