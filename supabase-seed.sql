@@ -47,7 +47,7 @@ BEGIN
     -- Insert Profiles
     INSERT INTO public.profiles (id, full_name, email, role, status, bio)
     VALUES 
-        (v_admin_id, 'Platform Admin', 'admin@connectplus.com', 'admin', 'active', 'System administrator.'),
+        (v_admin_id, 'Platform Admin', 'trang.tt@erickson.vn', 'admin', 'active', 'System administrator.'),
         (v_coach_id, 'Marcus Aurelius', 'marcus@coach.com', 'coach', 'active', 'Senior Executive coach focusing on leadership and resilience.'),
         (v_coach_2_id, 'Dr. Elena Vance', 'elena@coach.com', 'coach', 'active', 'Behavioral specialist & EQ expert with a focus on burnout prevention.'),
         (v_coach_3_id, 'Maya Lin', 'maya@coach.com', 'coach', 'active', 'Career transition specialist helping leaders find their next pivot.'),
